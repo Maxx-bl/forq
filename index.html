@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>forq — suivi de cours</title>
+  <title>forq</title>
   <meta name="description" content="Suivi minimaliste de cryptos et de devises." />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -36,14 +36,16 @@
         <span id="convert-line-2">—</span>
       </div>
       <div class="chart-wrap">
-        <canvas id="convert-chart" height="120"></canvas>
+        <canvas id="convert-chart" height="140"></canvas>
       </div>
     </section>
 
     <div class="range-row">
       <div id="range-switch" class="segmented segmented--small" role="group" aria-label="Période">
-        <button type="button" class="segmented-btn" data-range="24h">24h</button>
+        <button type="button" class="segmented-btn" data-range="24h">Aujourd'hui</button>
         <button type="button" class="segmented-btn is-active" data-range="7d">7j</button>
+        <button type="button" class="segmented-btn" data-range="30d">Mois</button>
+        <button type="button" class="segmented-btn" data-range="all">Toujours</button>
       </div>
     </div>
   </main>

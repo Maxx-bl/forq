@@ -2,17 +2,22 @@ name = "forq-prices-worker"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
-# Deux cron triggers :
-#  - toutes les 5 minutes : rafraichit les prix courants (peu coûteux en appels API)
-#  - toutes les 30 minutes : rafraichit les historiques 24h/7j (plus coûteux en appels API)
+# Deux cron triggers (rythme calé sur le quota CoinGecko Demo : 10 000 appels/mois, voir
+# worker/src/index.js pour le détail du calcul) :
+#  - toutes les 15 minutes : rafraîchit les prix courants
+#  - toutes les 6 heures   : rafraîchit les historiques (24h/7j/mois/toujours)
 [triggers]
-crons = ["*/5 * * * *", "*/30 * * * *"]
+crons = ["*/15 * * * *", "0 */6 * * *"]
 
 # Namespace KV où sont stockés les prix (créer avec `wrangler kv namespace create PRICES_KV`
 # puis remplacer "id" ci-dessous par l'id retourné).
+# preview_id = même valeur que id : volontaire, pour que `wrangler dev --remote` (utilisé
+# pour déclencher manuellement le premier remplissage du cache, cf. README) écrive dans le
+# même KV que la production plutôt que dans un namespace de test séparé.
 [[kv_namespaces]]
 binding = "PRICES_KV"
 id = "6947760629774da19acd7c4f385580ce"
+preview_id = "6947760629774da19acd7c4f385580ce"
 
 # La clé API CoinGecko (plan Demo, gratuite) doit être ajoutée en secret :
 #   wrangler secret put COINGECKO_API_KEY

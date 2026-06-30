@@ -109,7 +109,7 @@ body {
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.segmented-btn:hover:not(:disabled) {
+.segmented-btn:hover:not(:disabled):not(.is-active) {
   color: var(--text);
 }
 
@@ -121,6 +121,11 @@ body {
 .segmented-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.segmented--small {
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .segmented--small .segmented-btn {
@@ -181,19 +186,93 @@ body {
   gap: 8px;
 }
 
-.asset-select {
+/* Champ de recherche d'actif (filtre en direct, liste globale si vide) */
+.asset-picker {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.asset-input {
+  width: 100%;
   border: none;
   background: transparent;
   color: var(--text);
   font-family: inherit;
   font-size: 15px;
   font-weight: 600;
-  cursor: pointer;
-  padding: 4px 0;
+  padding: 4px 16px 4px 0;
 }
 
-.asset-select:focus {
+.asset-input:focus {
   outline: none;
+}
+
+.asset-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.asset-arrow {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+  transition: transform 0.15s ease;
+}
+
+.asset-picker.is-open .asset-arrow {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.asset-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -10px;
+  right: -10px;
+  z-index: 20;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.asset-option-group {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 8px 8px 2px;
+}
+
+.asset-option {
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.asset-option:hover,
+.asset-option.is-active {
+  background: var(--border);
+}
+
+.asset-option--empty {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.asset-option--empty:hover {
+  background: transparent;
 }
 
 .card-remove {
@@ -250,7 +329,7 @@ body {
 }
 
 .chart-wrap {
-  height: 110px;
+  height: 140px;
   position: relative;
 }
 

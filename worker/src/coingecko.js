@@ -36,15 +36,15 @@ export async function fetchCurrentPrices(cryptos, apiKey) {
   return result;
 }
 
-// Récupère l'historique sur 7 jours (granularité horaire fournie par CoinGecko pour cette
-// plage) d'une seule crypto. On en dérive ensuite les séries "24h" et "7j" côté kv.js,
-// ce qui évite un second appel par crypto.
-export async function fetchHistory7d(cryptoId, apiKey) {
-  const url = `${BASE_URL}/coins/${cryptoId}/market_chart?vs_currency=usd&days=7`;
+// Récupère l'historique des prix d'une crypto sur `days` jours. CoinGecko choisit
+// automatiquement la granularité selon la plage demandée (≈horaire jusqu'à 90 jours,
+// quotidienne au-delà). Le plan Demo limite l'historique disponible à 365 jours.
+export async function fetchHistory(cryptoId, days, apiKey) {
+  const url = `${BASE_URL}/coins/${cryptoId}/market_chart?vs_currency=usd&days=${days}`;
 
   const res = await fetch(url, { headers: headers(apiKey) });
   if (!res.ok) {
-    throw new Error(`CoinGecko /market_chart a échoué pour ${cryptoId} : ${res.status}`);
+    throw new Error(`CoinGecko /market_chart a échoué pour ${cryptoId} (days=${days}) : ${res.status}`);
   }
 
   const data = await res.json();

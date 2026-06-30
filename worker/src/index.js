@@ -6,12 +6,23 @@
 //   cron. C'est le seul endpoint public.
 
 import { CRYPTOS, FIATS } from "./assets.js";
-import { fetchCurrentPrices, fetchHistory7d } from "./coingecko.js";
+import { fetchCurrentPrices, fetchHistory } from "./coingecko.js";
 import { fetchCurrentRates, fetchHistory as fetchFiatHistory } from "./frankfurter.js";
 import { readState, writeState, applyCurrentPrices, applyCryptoHistory, applyFiatHistory } from "./kv.js";
 
-const CRON_CURRENT_PRICES = "*/5 * * * *";
-const CRON_HISTORY = "*/30 * * * *";
+const CRON_CURRENT_PRICES = "*/15 * * * *";
+const CRON_HISTORY = "0 */6 * * *";
+
+// Le plan Demo CoinGecko est plafonné à 10 000 appels/mois (pas seulement 30/min) :
+// https://support.coingecko.com/hc/en-us/articles/4538771776153
+//   - prix courant : 1 appel CoinGecko / exécution × 96 exécutions/jour  =    96 appels/jour
+//   - historique    : 2 appels CoinGecko / crypto / exécution × 14 cryptos × 4 exécutions/jour
+//                      =                                                     112 appels/jour
+//   - total ≈ 208 appels/jour × 30 jours ≈ 6 240 appels/mois (large marge sous 10 000)
+const CRYPTO_HISTORY_SHORT_DAYS = 7; // granularité horaire -> séries "24h" / "7d"
+const CRYPTO_HISTORY_LONG_DAYS = 365; // granularité quotidienne -> séries "30d" / "all"
+// Frankfurter n'a pas de quota : un seul appel longue durée couvre "7d"/"30d"/"all".
+const FIAT_HISTORY_DAYS = 1825; // ~5 ans
 
 function corsHeaders(env) {
   return {
@@ -52,23 +63,29 @@ async function handleCurrentPricesJob(env) {
 async function handleHistoryJob(env) {
   const state = await readState(env.PRICES_KV);
 
-  // Un appel par crypto (days=7, granularité horaire), en parallèle : ~14 appels, large­ment
-  // sous la limite de 30 appels/min du plan Demo CoinGecko. Les échecs individuels n'empêchent
+  // Deux appels par crypto (days=7 et days=365), en parallèle : ~28 appels au total,
+  // exécutés 4 fois/jour (cf. budget en tête de fichier). Les échecs individuels n'empêchent
   // pas la mise à jour des autres actifs.
   const cryptoResults = await Promise.allSettled(
-    CRYPTOS.map((crypto) => fetchHistory7d(crypto.id, env.COINGECKO_API_KEY))
+    CRYPTOS.map((crypto) =>
+      Promise.all([
+        fetchHistory(crypto.id, CRYPTO_HISTORY_SHORT_DAYS, env.COINGECKO_API_KEY),
+        fetchHistory(crypto.id, CRYPTO_HISTORY_LONG_DAYS, env.COINGECKO_API_KEY),
+      ])
+    )
   );
   cryptoResults.forEach((result, index) => {
     if (result.status === "fulfilled") {
-      applyCryptoHistory(state, CRYPTOS[index], result.value);
+      const [shortPoints, longPoints] = result.value;
+      applyCryptoHistory(state, CRYPTOS[index], shortPoints, longPoints);
     } else {
       console.error(`Historique CoinGecko échoué pour ${CRYPTOS[index].id}`, result.reason);
     }
   });
 
-  // Un seul appel Frankfurter couvre toutes les devises suivies.
+  // Un seul appel Frankfurter (sans quota) couvre toutes les devises et toutes les plages.
   try {
-    const fiatHistory = await fetchFiatHistory(FIATS, 7);
+    const fiatHistory = await fetchFiatHistory(FIATS, FIAT_HISTORY_DAYS);
     for (const fiat of FIATS) {
       applyFiatHistory(state, fiat, fiatHistory[fiat.id] ?? []);
     }

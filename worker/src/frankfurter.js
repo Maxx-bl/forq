@@ -62,9 +62,11 @@ export async function fetchCurrentRates(fiats) {
   return result;
 }
 
-// Récupère l'historique quotidien (USD) de chaque devise suivie sur `days` jours.
-// Utilisé pour la série "7j" (les devises n'ont pas de série "24h" significative,
-// cf. README — le front masque le toggle 24h pour les actifs de type "fiat").
+// Récupère l'historique quotidien (USD) de chaque devise suivie sur `days` jours, en UN SEUL
+// appel (Frankfurter n'a pas de notion de granularité : un seul taux par jour ouvré). Les
+// séries "7j"/"mois"/"toujours" sont ensuite dérivées de ce même tableau par simple découpage
+// (cf. kv.js applyFiatHistory) — il n'y a donc pas de série "24h" significative pour les
+// devises (le front masque ce bouton pour les actifs de type "fiat").
 export async function fetchHistory(fiats, days = 30) {
   const symbols = fiats.filter((f) => f.id !== "USD").map((f) => f.id);
   const end = new Date();

@@ -3,9 +3,12 @@
 /* ------------------------------------------------------------------ */
 /* Constantes                                                          */
 /* ------------------------------------------------------------------ */
-const REFRESH_INTERVAL_MS = 60 * 1000; // le worker rafraîchit son cache toutes les 5 min,
+const REFRESH_INTERVAL_MS = 60 * 1000; // le worker rafraîchit son cache toutes les 15 min,
 // on relit le cache (lecture KV, peu coûteuse) toutes les 60s côté front
 const DEFAULT_ASSET_A = "bitcoin";
+const LAST_ASSETS_KEY = "forq-last-assets";
+const RANGES = ["24h", "7d", "30d", "all"];
+const DEFAULT_RANGE = "7d";
 
 /* ------------------------------------------------------------------ */
 /* État applicatif                                                     */
@@ -15,7 +18,7 @@ const state = {
   slotA: null, // id de l'actif affiché dans la carte 1
   slotB: null, // id de l'actif affiché dans la carte 2 (null = carte désactivée)
   mode: "compare", // "compare" | "convert"
-  range: "7d", // "24h" | "7d"
+  range: DEFAULT_RANGE, // "24h" | "7d" | "30d" | "all"
   charts: {}, // instances Chart.js actives, indexées par clé ("A", "B", "convert")
 };
 
@@ -26,9 +29,10 @@ const lastPrices = {}; // dernier prix affiché par carte, pour l'animation de c
 /* ------------------------------------------------------------------ */
 function readStateFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  state.slotA = params.get("a") || DEFAULT_ASSET_A;
-  state.slotB = params.get("b") || null;
-  state.range = params.get("range") === "24h" ? "24h" : "7d";
+  const lastAssets = loadLastAssets();
+  state.slotA = params.get("a") || lastAssets.a || DEFAULT_ASSET_A;
+  state.slotB = params.get("b") || lastAssets.b || null;
+  state.range = RANGES.includes(params.get("range")) ? params.get("range") : DEFAULT_RANGE;
   state.mode = params.get("mode") === "convert" && state.slotB ? "convert" : "compare";
 }
 
@@ -39,6 +43,21 @@ function writeStateToUrl() {
   params.set("range", state.range);
   if (state.mode === "convert" && state.slotB) params.set("mode", "convert");
   window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+}
+
+/* ------------------------------------------------------------------ */
+/* Derniers actifs consultés (localStorage, pré-remplit l'ouverture)    */
+/* ------------------------------------------------------------------ */
+function loadLastAssets() {
+  try {
+    return JSON.parse(localStorage.getItem(LAST_ASSETS_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLastAssets() {
+  localStorage.setItem(LAST_ASSETS_KEY, JSON.stringify({ a: state.slotA, b: state.slotB }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -124,11 +143,11 @@ function isFiat(id) {
   return Boolean(asset && asset.type === "fiat");
 }
 
-// Les devises (Frankfurter) n'ont pas de granularité 24h significative : on masque ce
-// choix dès qu'un des actifs affichés est une devise (cf. worker/README.md).
+// Les devises (Frankfurter) n'ont pas de granularité 24h significative : on masque
+// uniquement "Aujourd'hui" dès qu'un des actifs affichés est une devise (cf. worker/README.md).
 function availableRanges() {
   const ids = [state.slotA, state.slotB].filter(Boolean);
-  return ids.some(isFiat) ? ["7d"] : ["24h", "7d"];
+  return ids.some(isFiat) ? RANGES.filter((r) => r !== "24h") : RANGES;
 }
 
 /* ------------------------------------------------------------------ */
@@ -150,6 +169,7 @@ function render() {
   }
 
   writeStateToUrl();
+  saveLastAssets();
 }
 
 function renderModeSwitch() {
@@ -162,7 +182,7 @@ function renderModeSwitch() {
 function renderRangeSwitch() {
   const ranges = availableRanges();
   if (!ranges.includes(state.range)) {
-    state.range = ranges[ranges.length - 1]; // repli sur 7j si 24h indisponible
+    state.range = ranges[0]; // repli sur la plage disponible la plus proche (ex : 7j si 24h indisponible)
   }
   document.querySelectorAll(".segmented-btn[data-range]").forEach((btn) => {
     const range = btn.dataset.range;
@@ -172,36 +192,140 @@ function renderRangeSwitch() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Rendu : sélecteur d'actif                                           */
+/* Rendu : sélecteur d'actif (champ texte avec filtrage en direct)     */
 /* ------------------------------------------------------------------ */
-function buildSelect(selectedId, onChange) {
-  const select = document.createElement("select");
-  select.className = "asset-select";
-
-  const groupCrypto = document.createElement("optgroup");
-  groupCrypto.label = "Cryptos";
-  getAssetList()
-    .filter((a) => a.type === "crypto")
-    .forEach((a) => groupCrypto.appendChild(buildOption(a, selectedId)));
-
-  const groupFiat = document.createElement("optgroup");
-  groupFiat.label = "Devises";
-  getAssetList()
-    .filter((a) => a.type === "fiat")
-    .forEach((a) => groupFiat.appendChild(buildOption(a, selectedId)));
-
-  select.appendChild(groupCrypto);
-  select.appendChild(groupFiat);
-  select.addEventListener("change", (e) => onChange(e.target.value));
-  return select;
+function assetLabel(asset) {
+  return `${asset.symbol} — ${asset.name}`;
 }
 
-function buildOption(asset, selectedId) {
-  const opt = document.createElement("option");
-  opt.value = asset.id;
-  opt.textContent = `${asset.symbol} — ${asset.name}`;
-  opt.selected = asset.id === selectedId;
-  return opt;
+// Normalise pour une recherche insensible à la casse et aux accents.
+function normalize(text) {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function buildAssetPicker(selectedId, onChange) {
+  const wrap = document.createElement("div");
+  wrap.className = "asset-picker";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "asset-input";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.placeholder = "Rechercher un actif…";
+
+  const arrow = document.createElement("span");
+  arrow.className = "asset-arrow";
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "⌄";
+
+  const list = document.createElement("ul");
+  list.className = "asset-options hidden";
+
+  const allAssets = getAssetList();
+  const selectedAsset = allAssets.find((a) => a.id === selectedId);
+  input.value = selectedAsset ? assetLabel(selectedAsset) : "";
+
+  let activeIndex = -1;
+  let currentMatches = [];
+
+  function renderOptions(query) {
+    const normalizedQuery = normalize(query);
+    // champ vide -> liste globale, sinon filtrage par symbole/nom
+    currentMatches = allAssets.filter(
+      (a) => normalizedQuery === "" || normalize(assetLabel(a)).includes(normalizedQuery)
+    );
+    activeIndex = -1;
+    list.innerHTML = "";
+
+    if (currentMatches.length === 0) {
+      const empty = document.createElement("li");
+      empty.className = "asset-option asset-option--empty";
+      empty.textContent = "Aucun résultat";
+      list.appendChild(empty);
+      return;
+    }
+
+    let lastType = null;
+    currentMatches.forEach((asset) => {
+      if (asset.type !== lastType) {
+        const group = document.createElement("li");
+        group.className = "asset-option-group";
+        group.textContent = asset.type === "crypto" ? "Cryptos" : "Devises";
+        list.appendChild(group);
+        lastType = asset.type;
+      }
+      const item = document.createElement("li");
+      item.className = "asset-option";
+      item.textContent = assetLabel(asset);
+      // mousedown + preventDefault : sélectionne avant que le champ ne perde le focus
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        selectAsset(asset);
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function selectAsset(asset) {
+    input.value = assetLabel(asset);
+    list.classList.add("hidden");
+    wrap.classList.remove("is-open");
+    onChange(asset.id);
+  }
+
+  function openList() {
+    input.value = "";
+    renderOptions("");
+    list.classList.remove("hidden");
+    wrap.classList.add("is-open");
+  }
+
+  function moveActive(delta) {
+    const optionEls = [...list.querySelectorAll(".asset-option:not(.asset-option--empty)")];
+    if (optionEls.length === 0) return;
+    activeIndex = (activeIndex + delta + optionEls.length) % optionEls.length;
+    optionEls.forEach((el, i) => el.classList.toggle("is-active", i === activeIndex));
+    optionEls[activeIndex].scrollIntoView({ block: "nearest" });
+  }
+
+  input.addEventListener("focus", openList);
+  input.addEventListener("input", () => {
+    renderOptions(input.value);
+    list.classList.remove("hidden");
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      list.classList.add("hidden");
+      wrap.classList.remove("is-open");
+      const current = allAssets.find((a) => a.id === selectedId);
+      input.value = current ? assetLabel(current) : "";
+    }, 100);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      input.blur();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const target = currentMatches[activeIndex] || currentMatches[0];
+      if (target) selectAsset(target);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveActive(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveActive(-1);
+    }
+  });
+
+  wrap.appendChild(input);
+  wrap.appendChild(arrow);
+  wrap.appendChild(list);
+  return wrap;
 }
 
 /* ------------------------------------------------------------------ */
@@ -255,7 +379,7 @@ function buildCard(key, assetId, onAssetChange, onRemove) {
 
   const head = document.createElement("div");
   head.className = "card-head";
-  head.appendChild(buildSelect(assetId, onAssetChange));
+  head.appendChild(buildAssetPicker(assetId, onAssetChange));
 
   if (onRemove) {
     const removeBtn = document.createElement("button");
@@ -352,24 +476,33 @@ function buildRatioSeries(seriesA, seriesB) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Graphique (Chart.js, rendu minimaliste : pas d'axes, courbe fine)   */
+/* Graphique (Chart.js, rendu minimaliste : grille fine, axes temps/valeur) */
 /* ------------------------------------------------------------------ */
 function renderChart(key, canvas, points, isUp) {
   destroyChart(key);
   if (!points || points.length === 0) return;
 
   const color = isUp ? getCssVar("--up") : getCssVar("--down");
+  const gridColor = getCssVar("--border");
+  const tickColor = getCssVar("--text-muted");
+  const surfaceColor = getCssVar("--surface");
+  const textColor = getCssVar("--text");
+  const range = state.range;
 
   state.charts[key] = new Chart(canvas, {
     type: "line",
     data: {
-      labels: points.map((p) => p[0]),
       datasets: [
         {
-          data: points.map((p) => p[1]),
+          data: points.map(([timestamp, value]) => ({ x: timestamp, y: value })),
           borderColor: color,
           borderWidth: 1.5,
           pointRadius: 0,
+          pointHoverRadius: 3,
+          pointHitRadius: 12,
+          pointHoverBackgroundColor: color,
+          pointHoverBorderColor: surfaceColor,
+          pointHoverBorderWidth: 1.5,
           tension: 0.35,
           fill: false,
         },
@@ -379,17 +512,82 @@ function renderChart(key, canvas, points, isUp) {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 300 },
-      interaction: { intersect: false },
+      interaction: { mode: "nearest", axis: "x", intersect: false },
       scales: {
-        x: { display: false },
-        y: { display: false },
+        x: {
+          type: "linear",
+          bounds: "data", // sans ça, Chart.js arrondit les bornes aux "ticks" les plus
+          // proches et la courbe se retrouve resserrée au milieu du graphique
+          min: points[0][0],
+          max: points.at(-1)[0],
+          offset: false,
+          grid: { color: gridColor, drawTicks: false },
+          border: { display: false },
+          ticks: {
+            color: tickColor,
+            font: { size: 10 },
+            maxRotation: 0,
+            maxTicksLimit: 4,
+            callback: (value) => formatAxisTime(value, range),
+          },
+        },
+        y: {
+          type: "linear",
+          position: "left",
+          bounds: "data",
+          grid: { color: gridColor, drawTicks: false },
+          border: { display: false },
+          ticks: {
+            color: tickColor,
+            font: { size: 10 },
+            maxTicksLimit: 4,
+            callback: (value) => formatAxisValue(value),
+          },
+        },
       },
       plugins: {
         legend: { display: false },
-        tooltip: { enabled: false },
+        tooltip: {
+          enabled: true,
+          intersect: false,
+          displayColors: false,
+          backgroundColor: surfaceColor,
+          borderColor: gridColor,
+          borderWidth: 1,
+          titleColor: tickColor,
+          bodyColor: textColor,
+          padding: 8,
+          cornerRadius: 8,
+          titleFont: { size: 10, weight: "400" },
+          bodyFont: { size: 13, weight: "600" },
+          callbacks: {
+            title: (items) => formatAxisTime(items[0].parsed.x, range),
+            label: (item) => formatNumber(item.parsed.y),
+          },
+        },
       },
     },
   });
+}
+
+function formatAxisTime(timestamp, range) {
+  const date = new Date(timestamp);
+  if (range === "24h") {
+    return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+  if (range === "all") {
+    // plage potentiellement pluriannuelle (devises) : on affiche le mois et l'année
+    return date.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+  }
+  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+}
+
+// Pas de notation compacte ("1,6 k") : sur une plage resserrée, plusieurs graduations
+// arrondissaient à la même valeur affichée. On garde des nombres pleins, avec une précision
+// dépendant de l'ordre de grandeur.
+function formatAxisValue(value) {
+  const decimals = value >= 1000 ? 0 : value >= 1 ? 2 : 6;
+  return value.toLocaleString("fr-FR", { maximumFractionDigits: decimals });
 }
 
 function destroyChart(key) {

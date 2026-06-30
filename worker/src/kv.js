@@ -27,7 +27,7 @@ function ensureAsset(state, id, type, symbol, name) {
       name,
       price: null,
       change24h: 0,
-      history: { "24h": [], "7d": [] },
+      history: { "24h": [], "7d": [], "30d": [], all: [] },
     };
   }
   return state.assets[id];
@@ -60,23 +60,39 @@ export function applyCurrentPrices(state, entries) {
   }
 }
 
-// Applique l'historique d'une crypto (job 30 min) : dérive "7d" (downsamplé) et "24h"
-// (sous-ensemble des dernières 24h, downsamplé) à partir d'un seul appel /market_chart?days=7.
-export function applyCryptoHistory(state, crypto, rawPoints) {
+// Applique l'historique d'une crypto (job historique) : dérive les 4 séries affichées
+// ("24h", "7d", "30d", "all") à partir de DEUX appels CoinGecko :
+//  - shortPoints : /market_chart?days=7  (granularité horaire) -> séries "24h" et "7d"
+//  - longPoints  : /market_chart?days=365 (granularité quotidienne) -> séries "30d" et "all"
+export function applyCryptoHistory(state, crypto, shortPoints, longPoints) {
   const asset = ensureAsset(state, crypto.id, "crypto", crypto.symbol, crypto.name);
 
-  asset.history["7d"] = downsample(rawPoints, 56);
+  asset.history["7d"] = downsample(shortPoints, 56);
 
   const since24h = Date.now() - 24 * 60 * 60 * 1000;
-  const last24h = rawPoints.filter(([timestamp]) => timestamp >= since24h);
-  asset.history["24h"] = downsample(last24h.length ? last24h : rawPoints.slice(-2), 48);
+  const last24h = shortPoints.filter(([timestamp]) => timestamp >= since24h);
+  asset.history["24h"] = downsample(last24h.length ? last24h : shortPoints.slice(-2), 48);
+
+  const since30d = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const last30d = longPoints.filter(([timestamp]) => timestamp >= since30d);
+  asset.history["30d"] = downsample(last30d.length ? last30d : longPoints.slice(-2), 60);
+
+  asset.history.all = downsample(longPoints, 90);
 }
 
-// Applique l'historique d'une devise (job 30 min). Frankfurter ne publie qu'un taux par jour
-// ouvré : il n'y a pas de série "24h" significative (le front masque ce toggle pour les
-// actifs de type "fiat", cf. worker/README.md).
+// Applique l'historique d'une devise (job historique), à partir d'un unique appel Frankfurter
+// longue durée (voir frankfurter.js) découpé en 3 fenêtres. Frankfurter ne publie qu'un taux
+// par jour ouvré : il n'y a pas de série "24h" significative (le front masque ce bouton pour
+// les actifs de type "fiat", cf. worker/README.md).
 export function applyFiatHistory(state, fiat, rawPoints) {
   const asset = ensureAsset(state, fiat.id, "fiat", fiat.symbol, fiat.name);
-  asset.history["7d"] = rawPoints;
   asset.history["24h"] = [];
+
+  const since7d = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  asset.history["7d"] = rawPoints.filter(([timestamp]) => timestamp >= since7d);
+
+  const since30d = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  asset.history["30d"] = rawPoints.filter(([timestamp]) => timestamp >= since30d);
+
+  asset.history.all = downsample(rawPoints, 120);
 }

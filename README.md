@@ -48,7 +48,12 @@ Le Worker renvoie un objet unique :
       "name": "Bitcoin",
       "price": 65234.12,
       "change24h": 1.34,
-      "history": { "24h": [[1719747600000, 65010.2], "..."], "7d": [["..."]] }
+      "history": {
+        "24h": [[1719747600000, 65010.2], "..."],
+        "7d": [["..."]],
+        "30d": [["..."]],
+        "all": [["..."]]
+      }
     },
     "EUR": {
       "type": "fiat",
@@ -56,7 +61,7 @@ Le Worker renvoie un objet unique :
       "name": "Euro",
       "price": 1.0832,
       "change24h": 0.05,
-      "history": { "24h": [], "7d": [["..."]] }
+      "history": { "24h": [], "7d": [["..."]], "30d": [["..."]], "all": [["..."]] }
     }
   }
 }
@@ -64,9 +69,11 @@ Le Worker renvoie un objet unique :
 
 - Tous les prix sont normalisés **en USD** (1 unité de l'actif = X USD), ce qui permet de
   calculer n'importe quel taux croisé côté front avec `price[A] / price[B]`.
+- 4 plages temporelles par actif : `24h` (Aujourd'hui), `7d` (7j), `30d` (Mois), `all`
+  (Toujours, ≈1 an pour les cryptos, ≈5 ans pour les devises).
 - `history["24h"]` est toujours vide pour les actifs de type `"fiat"` : Frankfurter (taux BCE)
   ne publie qu'un taux par jour ouvré, il n'existe donc pas de vraie donnée intra-journalière.
-  Le front masque le bouton 24h/7j dès qu'une devise est sélectionnée.
+  Le front masque le bouton "Aujourd'hui" dès qu'une devise est sélectionnée.
 
 ## Déploiement
 

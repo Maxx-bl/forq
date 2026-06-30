@@ -9,6 +9,8 @@ const DEFAULT_ASSET_A = "bitcoin";
 const LAST_ASSETS_KEY = "forq-last-assets";
 const RANGES = ["24h", "7d", "30d", "all"];
 const DEFAULT_RANGE = "7d";
+const DISPLAY_CURRENCY_KEY = "forq-display-currency";
+const DEFAULT_DISPLAY_CURRENCY = "EUR";
 
 /* ------------------------------------------------------------------ */
 /* État applicatif                                                     */
@@ -19,6 +21,7 @@ const state = {
   slotB: null, // id de l'actif affiché dans la carte 2 (null = carte désactivée)
   mode: "compare", // "compare" | "convert"
   range: DEFAULT_RANGE, // "24h" | "7d" | "30d" | "all"
+  displayCurrency: DEFAULT_DISPLAY_CURRENCY, // "EUR" | "USD" — devise d'affichage des prix
   charts: {}, // instances Chart.js actives, indexées par clé ("A", "B", "convert")
 };
 
@@ -58,6 +61,32 @@ function loadLastAssets() {
 
 function saveLastAssets() {
   localStorage.setItem(LAST_ASSETS_KEY, JSON.stringify({ a: state.slotA, b: state.slotB }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Devise d'affichage (EUR par défaut, choix persisté en localStorage) */
+/* ------------------------------------------------------------------ */
+function initDisplayCurrency() {
+  const saved = localStorage.getItem(DISPLAY_CURRENCY_KEY);
+  state.displayCurrency = saved === "USD" ? "USD" : DEFAULT_DISPLAY_CURRENCY;
+}
+
+function setDisplayCurrency(code) {
+  if (code === state.displayCurrency) return;
+  state.displayCurrency = code;
+  localStorage.setItem(DISPLAY_CURRENCY_KEY, code);
+  // les prix affichés changent de grandeur en changeant de devise : on évite un flash
+  // up/down trompeur basé sur cet écart de conversion plutôt qu'un vrai mouvement de prix
+  Object.keys(lastPrices).forEach((key) => delete lastPrices[key]);
+  render();
+}
+
+// Convertit un prix exprimé en USD (format de stockage interne, cf. worker/README.md) vers
+// la devise d'affichage choisie par l'utilisateur.
+function toDisplayPrice(usdValue) {
+  if (usdValue == null) return null;
+  const rate = getAsset(state.displayCurrency)?.price;
+  return rate ? usdValue / rate : usdValue;
 }
 
 /* ------------------------------------------------------------------ */
@@ -154,6 +183,7 @@ function availableRanges() {
 /* Rendu général                                                        */
 /* ------------------------------------------------------------------ */
 function render() {
+  renderCurrencySwitch();
   renderModeSwitch();
   renderRangeSwitch();
   destroyAllCharts();
@@ -170,6 +200,12 @@ function render() {
 
   writeStateToUrl();
   saveLastAssets();
+}
+
+function renderCurrencySwitch() {
+  document.querySelectorAll(".segmented-btn[data-currency]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.currency === state.displayCurrency);
+  });
 }
 
 function renderModeSwitch() {
@@ -395,9 +431,11 @@ function buildCard(key, assetId, onAssetChange, onRemove) {
   const priceRow = document.createElement("div");
   priceRow.className = "price-row";
 
+  const displayPrice = asset ? toDisplayPrice(asset.price) : null;
+
   const priceEl = document.createElement("span");
   priceEl.className = "price";
-  priceEl.textContent = asset ? formatPrice(asset.price) : "—";
+  priceEl.textContent = formatPrice(displayPrice);
   priceRow.appendChild(priceEl);
 
   if (asset && asset.price != null) {
@@ -415,11 +453,11 @@ function buildCard(key, assetId, onAssetChange, onRemove) {
   card.appendChild(chartWrap);
 
   if (asset) {
-    const points = asset.history[state.range] || [];
+    const points = (asset.history[state.range] || []).map(([t, v]) => [t, toDisplayPrice(v)]);
     requestAnimationFrame(() => renderChart(key, canvas, points, asset.change24h >= 0));
   }
 
-  animatePriceChange(priceEl, asset ? asset.price : null, key);
+  animatePriceChange(priceEl, displayPrice, key);
 
   return card;
 }
@@ -609,7 +647,14 @@ function getCssVar(name) {
 /* Formatage des nombres                                                */
 /* ------------------------------------------------------------------ */
 function formatPrice(price) {
-  return price == null ? "—" : formatNumber(price);
+  if (price == null) return "—";
+  const decimals = price >= 100 ? 2 : price >= 1 ? 4 : 6;
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: state.displayCurrency,
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: 2,
+  }).format(price);
 }
 
 function formatNumber(value) {
@@ -622,6 +667,10 @@ function formatNumber(value) {
 /* ------------------------------------------------------------------ */
 function initControls() {
   document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
+
+  document.querySelectorAll(".segmented-btn[data-currency]").forEach((btn) => {
+    btn.addEventListener("click", () => setDisplayCurrency(btn.dataset.currency));
+  });
 
   document.querySelectorAll(".segmented-btn[data-mode]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -645,6 +694,7 @@ function initControls() {
 /* ------------------------------------------------------------------ */
 function init() {
   initTheme();
+  initDisplayCurrency();
   readStateFromUrl();
   initControls();
   fetchPrices();

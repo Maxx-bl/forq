@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>forq — suivi de cours</title>
+  <meta name="description" content="Suivi minimaliste de cryptos et de devises." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="logo">forq</h1>
+
+    <div class="topbar-actions">
+      <div id="mode-switch" class="segmented" role="group" aria-label="Mode d'affichage">
+        <button type="button" class="segmented-btn is-active" data-mode="compare">comparer</button>
+        <button type="button" class="segmented-btn" data-mode="convert" disabled>convertir</button>
+      </div>
+
+      <button id="theme-toggle" class="icon-btn" type="button" aria-label="Changer de thème" title="Changer de thème">
+        <span aria-hidden="true">☾</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="app">
+    <p id="status" class="status hidden" role="status"></p>
+
+    <section id="cards" class="cards"></section>
+
+    <section id="convert-view" class="convert-view hidden">
+      <div class="convert-rate">
+        <span id="convert-line-1">—</span>
+      </div>
+      <div class="convert-rate convert-rate--secondary">
+        <span id="convert-line-2">—</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="convert-chart" height="120"></canvas>
+      </div>
+    </section>
+
+    <div class="range-row">
+      <div id="range-switch" class="segmented segmented--small" role="group" aria-label="Période">
+        <button type="button" class="segmented-btn" data-range="24h">24h</button>
+        <button type="button" class="segmented-btn is-active" data-range="7d">7j</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span id="updated-at"></span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

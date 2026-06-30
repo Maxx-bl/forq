@@ -1,0 +1,23 @@
+name = "forq-prices-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Deux cron triggers :
+#  - toutes les 5 minutes : rafraichit les prix courants (peu coûteux en appels API)
+#  - toutes les 30 minutes : rafraichit les historiques 24h/7j (plus coûteux en appels API)
+[triggers]
+crons = ["*/5 * * * *", "*/30 * * * *"]
+
+# Namespace KV où sont stockés les prix (créer avec `wrangler kv namespace create PRICES_KV`
+# puis remplacer "id" ci-dessous par l'id retourné).
+[[kv_namespaces]]
+binding = "PRICES_KV"
+id = "6947760629774da19acd7c4f385580ce"
+
+# La clé API CoinGecko (plan Demo, gratuite) doit être ajoutée en secret :
+#   wrangler secret put COINGECKO_API_KEY
+
+# Origine autorisée pour les requêtes CORS (le domaine GitHub Pages du front).
+# Remplacer "*" par ex. "https://votre-user.github.io" une fois le front déployé.
+[vars]
+ALLOWED_ORIGIN = "*"

@@ -1,0 +1,329 @@
+/* ----------------------------------------------------------------------
+   Thème : clair par défaut, sombre via [data-theme="dark"] sur <html>.
+   ---------------------------------------------------------------------- */
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --border: #e8e8e8;
+  --text: #14171a;
+  --text-muted: #767b80;
+  --accent: #14171a;
+  --up: #1d8f4e;
+  --down: #d9412f;
+  --radius: 14px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+html[data-theme="dark"] {
+  --bg: #111213;
+  --surface: #18191b;
+  --border: #2a2c2f;
+  --text: #f2f2f2;
+  --text-muted: #8a8f94;
+  --accent: #f2f2f2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------- */
+/* En-tête                                                                 */
+/* ---------------------------------------------------------------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px clamp(16px, 4vw, 48px) 12px;
+}
+
+.logo {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+/* Segmented control (mode / période) */
+.segmented {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.segmented-btn:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.segmented-btn.is-active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.segmented-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.segmented--small .segmented-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Contenu principal                                                      */
+/* ---------------------------------------------------------------------- */
+#app {
+  flex: 1;
+  padding: 24px clamp(16px, 4vw, 48px) 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.status {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.range-row {
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Cartes                                                                  */
+/* ---------------------------------------------------------------------- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.asset-select {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.asset-select:focus {
+  outline: none;
+}
+
+.card-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px;
+}
+
+.card-remove:hover {
+  color: var(--down);
+}
+
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.price {
+  font-size: clamp(26px, 4vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: color 0.4s ease;
+}
+
+.price.flash-up {
+  color: var(--up);
+}
+
+.price.flash-down {
+  color: var(--down);
+}
+
+.change {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.change.is-up {
+  color: var(--up);
+  background: color-mix(in srgb, var(--up) 14%, transparent);
+}
+
+.change.is-down {
+  color: var(--down);
+  background: color-mix(in srgb, var(--down) 14%, transparent);
+}
+
+.chart-wrap {
+  height: 110px;
+  position: relative;
+}
+
+/* Carte "ajouter un second actif" */
+.add-card {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.add-card:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Mode conversion directe                                                */
+/* ---------------------------------------------------------------------- */
+.convert-view {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.convert-rate {
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.convert-rate--secondary {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.convert-view .chart-wrap {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 18px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Pied de page                                                           */
+/* ---------------------------------------------------------------------- */
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 16px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Responsive                                                              */
+/* ---------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
